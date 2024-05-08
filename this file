@@ -1,1 +1,638 @@
-{"metadata":{"kernelspec":{"language":"python","display_name":"Python 3","name":"python3"},"language_info":{"name":"python","version":"3.10.13","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[{"sourceId":3136,"databundleVersionId":26502,"sourceType":"competition"}],"dockerImageVersionId":30698,"isInternetEnabled":false,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":4,"nbformat":4,"cells":[{"cell_type":"code","source":"# This Python 3 environment comes with many helpful analytics libraries installed\n# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python\n# For example, here's several helpful packages to load\n\nimport random\nimport numpy as np # linear algebra\nimport pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\nfrom sklearn.metrics import mean_absolute_error\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.tree import DecisionTreeRegressor\nfrom sklearn.ensemble import RandomForestRegressor\n\n# Input data files are available in the read-only \"../input/\" directory\n# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory\n\nimport os\nfor dirname, _, filenames in os.walk('/kaggle/input'):\n    for filename in filenames:\n        print(os.path.join(dirname, filename))\n\n# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\" \n# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session","metadata":{"_uuid":"8f2839f25d086af736a60e9eeb907d3b93b6e0e5","_cell_guid":"b1076dfc-b9ad-4769-8c92-a6c4dae69d19","execution":{"iopub.status.busy":"2024-05-08T16:41:31.522898Z","iopub.execute_input":"2024-05-08T16:41:31.523279Z","iopub.status.idle":"2024-05-08T16:41:34.219752Z","shell.execute_reply.started":"2024-05-08T16:41:31.523248Z","shell.execute_reply":"2024-05-08T16:41:34.218655Z"},"trusted":true},"execution_count":null,"outputs":[]},{"cell_type":"code","source":"trainData = '/kaggle/input/titanic/train.csv'\ntestData = '/kaggle/input/titanic/test.csv'\n\ndata_train = pd.read_csv(trainData)\n\ndata_test = pd.read_csv(testData)\n\ndata_test.describe()","metadata":{"execution":{"iopub.status.busy":"2024-05-08T17:12:54.468115Z","iopub.execute_input":"2024-05-08T17:12:54.468594Z","iopub.status.idle":"2024-05-08T17:12:54.511970Z","shell.execute_reply.started":"2024-05-08T17:12:54.468560Z","shell.execute_reply":"2024-05-08T17:12:54.509503Z"},"trusted":true},"execution_count":null,"outputs":[]},{"cell_type":"code","source":"nan_columns = data_test.isna().any()\n\nprint(nan_columns)","metadata":{"execution":{"iopub.status.busy":"2024-05-08T17:07:18.988217Z","iopub.execute_input":"2024-05-08T17:07:18.988620Z","iopub.status.idle":"2024-05-08T17:07:18.996670Z","shell.execute_reply.started":"2024-05-08T17:07:18.988590Z","shell.execute_reply":"2024-05-08T17:07:18.995553Z"},"trusted":true},"execution_count":null,"outputs":[]},{"cell_type":"code","source":"features = ['Pclass', 'Sex', 'Age', 'Fare', 'Cabin', 'Embarked']\n\nx_train = data_train[features].copy()\nx_test = data_test[features].copy()\n\ny_train = data_train['Survived']\n\nx_train['Sex'] = x_train['Sex'].replace({'male': 0, 'female': 1})\nx_test['Sex'] = x_test['Sex'].replace({'male': 0, 'female': 1})\n\nx_train['Embarked'] = x_train['Embarked'].replace({'S': 1, 'C': 2, 'Q': 3})\nx_test['Embarked'] = x_test['Embarked'].replace({'S': 1, 'C': 2, 'Q': 3})","metadata":{"execution":{"iopub.status.busy":"2024-05-08T17:14:47.770195Z","iopub.execute_input":"2024-05-08T17:14:47.770610Z","iopub.status.idle":"2024-05-08T17:14:47.795370Z","shell.execute_reply.started":"2024-05-08T17:14:47.770581Z","shell.execute_reply":"2024-05-08T17:14:47.794252Z"},"trusted":true},"execution_count":null,"outputs":[]},{"cell_type":"code","source":"median_age = x_train['Age'].median()\n\nx_train['Age'].fillna(median_age, inplace=True)\nx_test['Age'].fillna(median_age, inplace=True)\n\nFC_mean_fare = x_train.loc[x_train['Pclass'] == 1, 'Fare'].mean()\nSC_mean_fare = x_train.loc[x_train['Pclass'] == 2, 'Fare'].mean()\nTC_mean_fare = x_train.loc[x_train['Pclass'] == 3, 'Fare'].mean()\n\nx_train.loc[(x_train['Pclass'] == 1) & (x_train['Fare'].isna()), 'Fare'] = FC_mean_fare\nx_train.loc[(x_train['Pclass'] == 2) & (x_train['Fare'].isna()), 'Fare'] = SC_mean_fare\nx_train.loc[(x_train['Pclass'] == 3) & (x_train['Fare'].isna()), 'Fare'] = TC_mean_fare\n\nx_test.loc[(x_test['Pclass'] == 1) & (x_test['Fare'].isna()), 'Fare'] = FC_mean_fare\nx_test.loc[(x_test['Pclass'] == 2) & (x_test['Fare'].isna()), 'Fare'] = SC_mean_fare\nx_test.loc[(x_test['Pclass'] == 3) & (x_test['Fare'].isna()), 'Fare'] = TC_mean_fare\n\nx_train['Cabin'].fillna(0, inplace=True)\nx_test['Cabin'].fillna(0, inplace=True)\n\nx_train.loc[x_train['Cabin'] != 0, 'Cabin'] = 1\nx_test.loc[x_test['Cabin'] != 0, 'Cabin'] = 1\n\nx_train['Embarked'].fillna(1, inplace=True)\n","metadata":{"execution":{"iopub.status.busy":"2024-05-08T17:18:46.537583Z","iopub.execute_input":"2024-05-08T17:18:46.538048Z","iopub.status.idle":"2024-05-08T17:18:46.567262Z","shell.execute_reply.started":"2024-05-08T17:18:46.538017Z","shell.execute_reply":"2024-05-08T17:18:46.566079Z"},"trusted":true},"execution_count":null,"outputs":[]},{"cell_type":"code","source":"nan_columns = x_train.isna().any()\n\nprint(nan_columns)","metadata":{"execution":{"iopub.status.busy":"2024-05-08T17:18:49.000080Z","iopub.execute_input":"2024-05-08T17:18:49.000685Z","iopub.status.idle":"2024-05-08T17:18:49.012179Z","shell.execute_reply.started":"2024-05-08T17:18:49.000644Z","shell.execute_reply":"2024-05-08T17:18:49.010044Z"},"trusted":true},"execution_count":null,"outputs":[]},{"cell_type":"code","source":"model = RandomForestRegressor(random_state=1)\n\nmodel.fit(x_train, y_train)\n\npredictions = model.predict(x_test)\n\nsubmission_df = pd.DataFrame({'PassengerId': data_test['PassengerId'], 'Survived': predictions})\nsubmission_df.loc[submission_df['Survived'] < 0.5, 'Survived'] = 0\nsubmission_df.loc[submission_df['Survived'] >= 0.5, 'Survived'] = 1\n\nsubmission_df.to_csv('submission.csv', index=False)\n\nsubmission_df","metadata":{"execution":{"iopub.status.busy":"2024-05-08T17:21:19.437918Z","iopub.execute_input":"2024-05-08T17:21:19.438320Z","iopub.status.idle":"2024-05-08T17:21:19.758026Z","shell.execute_reply.started":"2024-05-08T17:21:19.438291Z","shell.execute_reply":"2024-05-08T17:21:19.756950Z"},"trusted":true},"execution_count":57,"outputs":[{"execution_count":57,"output_type":"execute_result","data":{"text/plain":"     PassengerId  Survived\n0            892       0.0\n1            893       0.0\n2            894       0.0\n3            895       1.0\n4            896       0.0\n..           ...       ...\n413         1305       0.0\n414         1306       1.0\n415         1307       0.0\n416         1308       0.0\n417         1309       0.0\n\n[418 rows x 2 columns]","text/html":"<div>\n<style scoped>\n    .dataframe tbody tr th:only-of-type {\n        vertical-align: middle;\n    }\n\n    .dataframe tbody tr th {\n        vertical-align: top;\n    }\n\n    .dataframe thead th {\n        text-align: right;\n    }\n</style>\n<table border=\"1\" class=\"dataframe\">\n  <thead>\n    <tr style=\"text-align: right;\">\n      <th></th>\n      <th>PassengerId</th>\n      <th>Survived</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th>0</th>\n      <td>892</td>\n      <td>0.0</td>\n    </tr>\n    <tr>\n      <th>1</th>\n      <td>893</td>\n      <td>0.0</td>\n    </tr>\n    <tr>\n      <th>2</th>\n      <td>894</td>\n      <td>0.0</td>\n    </tr>\n    <tr>\n      <th>3</th>\n      <td>895</td>\n      <td>1.0</td>\n    </tr>\n    <tr>\n      <th>4</th>\n      <td>896</td>\n      <td>0.0</td>\n    </tr>\n    <tr>\n      <th>...</th>\n      <td>...</td>\n      <td>...</td>\n    </tr>\n    <tr>\n      <th>413</th>\n      <td>1305</td>\n      <td>0.0</td>\n    </tr>\n    <tr>\n      <th>414</th>\n      <td>1306</td>\n      <td>1.0</td>\n    </tr>\n    <tr>\n      <th>415</th>\n      <td>1307</td>\n      <td>0.0</td>\n    </tr>\n    <tr>\n      <th>416</th>\n      <td>1308</td>\n      <td>0.0</td>\n    </tr>\n    <tr>\n      <th>417</th>\n      <td>1309</td>\n      <td>0.0</td>\n    </tr>\n  </tbody>\n</table>\n<p>418 rows × 2 columns</p>\n</div>"},"metadata":{}}]}]}
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "8ba8d587",
+   "metadata": {
+    "_cell_guid": "b1076dfc-b9ad-4769-8c92-a6c4dae69d19",
+    "_uuid": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5",
+    "execution": {
+     "iopub.execute_input": "2024-05-08T17:28:10.243534Z",
+     "iopub.status.busy": "2024-05-08T17:28:10.243106Z",
+     "iopub.status.idle": "2024-05-08T17:28:13.480931Z",
+     "shell.execute_reply": "2024-05-08T17:28:13.479634Z"
+    },
+    "papermill": {
+     "duration": 3.246962,
+     "end_time": "2024-05-08T17:28:13.484100",
+     "exception": false,
+     "start_time": "2024-05-08T17:28:10.237138",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "/kaggle/input/titanic/train.csv\n",
+      "/kaggle/input/titanic/test.csv\n",
+      "/kaggle/input/titanic/gender_submission.csv\n"
+     ]
+    }
+   ],
+   "source": [
+    "# This Python 3 environment comes with many helpful analytics libraries installed\n",
+    "# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python\n",
+    "# For example, here's several helpful packages to load\n",
+    "\n",
+    "import random\n",
+    "import numpy as np # linear algebra\n",
+    "import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\n",
+    "from sklearn.metrics import mean_absolute_error\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "from sklearn.tree import DecisionTreeRegressor\n",
+    "from sklearn.ensemble import RandomForestRegressor\n",
+    "\n",
+    "# Input data files are available in the read-only \"../input/\" directory\n",
+    "# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory\n",
+    "\n",
+    "import os\n",
+    "for dirname, _, filenames in os.walk('/kaggle/input'):\n",
+    "    for filename in filenames:\n",
+    "        print(os.path.join(dirname, filename))\n",
+    "\n",
+    "# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\" \n",
+    "# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "343b310a",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-08T17:28:13.494390Z",
+     "iopub.status.busy": "2024-05-08T17:28:13.493785Z",
+     "iopub.status.idle": "2024-05-08T17:28:13.574765Z",
+     "shell.execute_reply": "2024-05-08T17:28:13.573538Z"
+    },
+    "papermill": {
+     "duration": 0.089147,
+     "end_time": "2024-05-08T17:28:13.577613",
+     "exception": false,
+     "start_time": "2024-05-08T17:28:13.488466",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>PassengerId</th>\n",
+       "      <th>Pclass</th>\n",
+       "      <th>Age</th>\n",
+       "      <th>SibSp</th>\n",
+       "      <th>Parch</th>\n",
+       "      <th>Fare</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>count</th>\n",
+       "      <td>418.000000</td>\n",
+       "      <td>418.000000</td>\n",
+       "      <td>332.000000</td>\n",
+       "      <td>418.000000</td>\n",
+       "      <td>418.000000</td>\n",
+       "      <td>417.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>mean</th>\n",
+       "      <td>1100.500000</td>\n",
+       "      <td>2.265550</td>\n",
+       "      <td>30.272590</td>\n",
+       "      <td>0.447368</td>\n",
+       "      <td>0.392344</td>\n",
+       "      <td>35.627188</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>std</th>\n",
+       "      <td>120.810458</td>\n",
+       "      <td>0.841838</td>\n",
+       "      <td>14.181209</td>\n",
+       "      <td>0.896760</td>\n",
+       "      <td>0.981429</td>\n",
+       "      <td>55.907576</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>min</th>\n",
+       "      <td>892.000000</td>\n",
+       "      <td>1.000000</td>\n",
+       "      <td>0.170000</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>25%</th>\n",
+       "      <td>996.250000</td>\n",
+       "      <td>1.000000</td>\n",
+       "      <td>21.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>7.895800</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>50%</th>\n",
+       "      <td>1100.500000</td>\n",
+       "      <td>3.000000</td>\n",
+       "      <td>27.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>14.454200</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>75%</th>\n",
+       "      <td>1204.750000</td>\n",
+       "      <td>3.000000</td>\n",
+       "      <td>39.000000</td>\n",
+       "      <td>1.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>31.500000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>max</th>\n",
+       "      <td>1309.000000</td>\n",
+       "      <td>3.000000</td>\n",
+       "      <td>76.000000</td>\n",
+       "      <td>8.000000</td>\n",
+       "      <td>9.000000</td>\n",
+       "      <td>512.329200</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "       PassengerId      Pclass         Age       SibSp       Parch        Fare\n",
+       "count   418.000000  418.000000  332.000000  418.000000  418.000000  417.000000\n",
+       "mean   1100.500000    2.265550   30.272590    0.447368    0.392344   35.627188\n",
+       "std     120.810458    0.841838   14.181209    0.896760    0.981429   55.907576\n",
+       "min     892.000000    1.000000    0.170000    0.000000    0.000000    0.000000\n",
+       "25%     996.250000    1.000000   21.000000    0.000000    0.000000    7.895800\n",
+       "50%    1100.500000    3.000000   27.000000    0.000000    0.000000   14.454200\n",
+       "75%    1204.750000    3.000000   39.000000    1.000000    0.000000   31.500000\n",
+       "max    1309.000000    3.000000   76.000000    8.000000    9.000000  512.329200"
+      ]
+     },
+     "execution_count": 2,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "trainData = '/kaggle/input/titanic/train.csv'\n",
+    "testData = '/kaggle/input/titanic/test.csv'\n",
+    "\n",
+    "data_train = pd.read_csv(trainData)\n",
+    "\n",
+    "data_test = pd.read_csv(testData)\n",
+    "\n",
+    "data_test.describe()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "f244698b",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-08T17:28:13.588267Z",
+     "iopub.status.busy": "2024-05-08T17:28:13.587073Z",
+     "iopub.status.idle": "2024-05-08T17:28:13.595928Z",
+     "shell.execute_reply": "2024-05-08T17:28:13.594777Z"
+    },
+    "papermill": {
+     "duration": 0.017037,
+     "end_time": "2024-05-08T17:28:13.598743",
+     "exception": false,
+     "start_time": "2024-05-08T17:28:13.581706",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "PassengerId    False\n",
+      "Pclass         False\n",
+      "Name           False\n",
+      "Sex            False\n",
+      "Age             True\n",
+      "SibSp          False\n",
+      "Parch          False\n",
+      "Ticket         False\n",
+      "Fare            True\n",
+      "Cabin           True\n",
+      "Embarked       False\n",
+      "dtype: bool\n"
+     ]
+    }
+   ],
+   "source": [
+    "nan_columns = data_test.isna().any()\n",
+    "\n",
+    "print(nan_columns)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "f3a706b2",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-08T17:28:13.610093Z",
+     "iopub.status.busy": "2024-05-08T17:28:13.608971Z",
+     "iopub.status.idle": "2024-05-08T17:28:13.635660Z",
+     "shell.execute_reply": "2024-05-08T17:28:13.634451Z"
+    },
+    "papermill": {
+     "duration": 0.03523,
+     "end_time": "2024-05-08T17:28:13.638398",
+     "exception": false,
+     "start_time": "2024-05-08T17:28:13.603168",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/tmp/ipykernel_18/3498157862.py:8: FutureWarning: Downcasting behavior in `replace` is deprecated and will be removed in a future version. To retain the old behavior, explicitly call `result.infer_objects(copy=False)`. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`\n",
+      "  x_train['Sex'] = x_train['Sex'].replace({'male': 0, 'female': 1})\n",
+      "/tmp/ipykernel_18/3498157862.py:9: FutureWarning: Downcasting behavior in `replace` is deprecated and will be removed in a future version. To retain the old behavior, explicitly call `result.infer_objects(copy=False)`. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`\n",
+      "  x_test['Sex'] = x_test['Sex'].replace({'male': 0, 'female': 1})\n",
+      "/tmp/ipykernel_18/3498157862.py:11: FutureWarning: Downcasting behavior in `replace` is deprecated and will be removed in a future version. To retain the old behavior, explicitly call `result.infer_objects(copy=False)`. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`\n",
+      "  x_train['Embarked'] = x_train['Embarked'].replace({'S': 1, 'C': 2, 'Q': 3})\n",
+      "/tmp/ipykernel_18/3498157862.py:12: FutureWarning: Downcasting behavior in `replace` is deprecated and will be removed in a future version. To retain the old behavior, explicitly call `result.infer_objects(copy=False)`. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`\n",
+      "  x_test['Embarked'] = x_test['Embarked'].replace({'S': 1, 'C': 2, 'Q': 3})\n"
+     ]
+    }
+   ],
+   "source": [
+    "features = ['Pclass', 'Sex', 'Age', 'Fare', 'Cabin', 'Embarked']\n",
+    "\n",
+    "x_train = data_train[features].copy()\n",
+    "x_test = data_test[features].copy()\n",
+    "\n",
+    "y_train = data_train['Survived']\n",
+    "\n",
+    "x_train['Sex'] = x_train['Sex'].replace({'male': 0, 'female': 1})\n",
+    "x_test['Sex'] = x_test['Sex'].replace({'male': 0, 'female': 1})\n",
+    "\n",
+    "x_train['Embarked'] = x_train['Embarked'].replace({'S': 1, 'C': 2, 'Q': 3})\n",
+    "x_test['Embarked'] = x_test['Embarked'].replace({'S': 1, 'C': 2, 'Q': 3})"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "19b926dd",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-08T17:28:13.650014Z",
+     "iopub.status.busy": "2024-05-08T17:28:13.649602Z",
+     "iopub.status.idle": "2024-05-08T17:28:13.679377Z",
+     "shell.execute_reply": "2024-05-08T17:28:13.678124Z"
+    },
+    "papermill": {
+     "duration": 0.040378,
+     "end_time": "2024-05-08T17:28:13.683424",
+     "exception": false,
+     "start_time": "2024-05-08T17:28:13.643046",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/tmp/ipykernel_18/3771157943.py:3: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.\n",
+      "The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.\n",
+      "\n",
+      "For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.\n",
+      "\n",
+      "\n",
+      "  x_train['Age'].fillna(median_age, inplace=True)\n",
+      "/tmp/ipykernel_18/3771157943.py:4: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.\n",
+      "The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.\n",
+      "\n",
+      "For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.\n",
+      "\n",
+      "\n",
+      "  x_test['Age'].fillna(median_age, inplace=True)\n",
+      "/tmp/ipykernel_18/3771157943.py:18: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.\n",
+      "The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.\n",
+      "\n",
+      "For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.\n",
+      "\n",
+      "\n",
+      "  x_train['Cabin'].fillna(0, inplace=True)\n",
+      "/tmp/ipykernel_18/3771157943.py:19: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.\n",
+      "The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.\n",
+      "\n",
+      "For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.\n",
+      "\n",
+      "\n",
+      "  x_test['Cabin'].fillna(0, inplace=True)\n",
+      "/tmp/ipykernel_18/3771157943.py:24: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.\n",
+      "The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.\n",
+      "\n",
+      "For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.\n",
+      "\n",
+      "\n",
+      "  x_train['Embarked'].fillna(1, inplace=True)\n"
+     ]
+    }
+   ],
+   "source": [
+    "median_age = x_train['Age'].median()\n",
+    "\n",
+    "x_train['Age'].fillna(median_age, inplace=True)\n",
+    "x_test['Age'].fillna(median_age, inplace=True)\n",
+    "\n",
+    "FC_mean_fare = x_train.loc[x_train['Pclass'] == 1, 'Fare'].mean()\n",
+    "SC_mean_fare = x_train.loc[x_train['Pclass'] == 2, 'Fare'].mean()\n",
+    "TC_mean_fare = x_train.loc[x_train['Pclass'] == 3, 'Fare'].mean()\n",
+    "\n",
+    "x_train.loc[(x_train['Pclass'] == 1) & (x_train['Fare'].isna()), 'Fare'] = FC_mean_fare\n",
+    "x_train.loc[(x_train['Pclass'] == 2) & (x_train['Fare'].isna()), 'Fare'] = SC_mean_fare\n",
+    "x_train.loc[(x_train['Pclass'] == 3) & (x_train['Fare'].isna()), 'Fare'] = TC_mean_fare\n",
+    "\n",
+    "x_test.loc[(x_test['Pclass'] == 1) & (x_test['Fare'].isna()), 'Fare'] = FC_mean_fare\n",
+    "x_test.loc[(x_test['Pclass'] == 2) & (x_test['Fare'].isna()), 'Fare'] = SC_mean_fare\n",
+    "x_test.loc[(x_test['Pclass'] == 3) & (x_test['Fare'].isna()), 'Fare'] = TC_mean_fare\n",
+    "\n",
+    "x_train['Cabin'].fillna(0, inplace=True)\n",
+    "x_test['Cabin'].fillna(0, inplace=True)\n",
+    "\n",
+    "x_train.loc[x_train['Cabin'] != 0, 'Cabin'] = 1\n",
+    "x_test.loc[x_test['Cabin'] != 0, 'Cabin'] = 1\n",
+    "\n",
+    "x_train['Embarked'].fillna(1, inplace=True)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "2e8b5e64",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-08T17:28:13.695411Z",
+     "iopub.status.busy": "2024-05-08T17:28:13.694960Z",
+     "iopub.status.idle": "2024-05-08T17:28:13.703361Z",
+     "shell.execute_reply": "2024-05-08T17:28:13.702259Z"
+    },
+    "papermill": {
+     "duration": 0.018119,
+     "end_time": "2024-05-08T17:28:13.706274",
+     "exception": false,
+     "start_time": "2024-05-08T17:28:13.688155",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Pclass      False\n",
+      "Sex         False\n",
+      "Age         False\n",
+      "Fare        False\n",
+      "Cabin       False\n",
+      "Embarked    False\n",
+      "dtype: bool\n"
+     ]
+    }
+   ],
+   "source": [
+    "nan_columns = x_train.isna().any()\n",
+    "\n",
+    "print(nan_columns)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "9e502e95",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-08T17:28:13.718577Z",
+     "iopub.status.busy": "2024-05-08T17:28:13.717999Z",
+     "iopub.status.idle": "2024-05-08T17:28:14.074652Z",
+     "shell.execute_reply": "2024-05-08T17:28:14.073388Z"
+    },
+    "papermill": {
+     "duration": 0.366685,
+     "end_time": "2024-05-08T17:28:14.077529",
+     "exception": false,
+     "start_time": "2024-05-08T17:28:13.710844",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>PassengerId</th>\n",
+       "      <th>Survived</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>892</td>\n",
+       "      <td>0.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>893</td>\n",
+       "      <td>0.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>894</td>\n",
+       "      <td>0.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>895</td>\n",
+       "      <td>1.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>896</td>\n",
+       "      <td>0.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>413</th>\n",
+       "      <td>1305</td>\n",
+       "      <td>0.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>414</th>\n",
+       "      <td>1306</td>\n",
+       "      <td>1.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>415</th>\n",
+       "      <td>1307</td>\n",
+       "      <td>0.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>416</th>\n",
+       "      <td>1308</td>\n",
+       "      <td>0.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>417</th>\n",
+       "      <td>1309</td>\n",
+       "      <td>0.0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>418 rows × 2 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "     PassengerId  Survived\n",
+       "0            892       0.0\n",
+       "1            893       0.0\n",
+       "2            894       0.0\n",
+       "3            895       1.0\n",
+       "4            896       0.0\n",
+       "..           ...       ...\n",
+       "413         1305       0.0\n",
+       "414         1306       1.0\n",
+       "415         1307       0.0\n",
+       "416         1308       0.0\n",
+       "417         1309       0.0\n",
+       "\n",
+       "[418 rows x 2 columns]"
+      ]
+     },
+     "execution_count": 7,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "model = RandomForestRegressor(random_state=1)\n",
+    "\n",
+    "model.fit(x_train, y_train)\n",
+    "\n",
+    "predictions = model.predict(x_test)\n",
+    "\n",
+    "submission_df = pd.DataFrame({'PassengerId': data_test['PassengerId'], 'Survived': predictions})\n",
+    "submission_df.loc[submission_df['Survived'] < 0.5, 'Survived'] = 0\n",
+    "submission_df.loc[submission_df['Survived'] >= 0.5, 'Survived'] = 1\n",
+    "\n",
+    "submission_df.to_csv('submission.csv', index=False)\n",
+    "\n",
+    "submission_df"
+   ]
+  }
+ ],
+ "metadata": {
+  "kaggle": {
+   "accelerator": "none",
+   "dataSources": [
+    {
+     "databundleVersionId": 26502,
+     "sourceId": 3136,
+     "sourceType": "competition"
+    }
+   ],
+   "dockerImageVersionId": 30698,
+   "isGpuEnabled": false,
+   "isInternetEnabled": false,
+   "language": "python",
+   "sourceType": "notebook"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.10.13"
+  },
+  "papermill": {
+   "default_parameters": {},
+   "duration": 7.845485,
+   "end_time": "2024-05-08T17:28:14.705481",
+   "environment_variables": {},
+   "exception": null,
+   "input_path": "__notebook__.ipynb",
+   "output_path": "__notebook__.ipynb",
+   "parameters": {},
+   "start_time": "2024-05-08T17:28:06.859996",
+   "version": "2.5.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
